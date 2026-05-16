@@ -5,6 +5,7 @@
 ### Added
 
 ### Fixed
+- Relaxed KOReader Sync auth response validation so compatible self-hosted servers that return valid JSON on successful login can authenticate.
 
 ### Changed
 
