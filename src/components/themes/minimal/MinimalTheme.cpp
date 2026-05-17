@@ -42,9 +42,6 @@ constexpr int kFileBrowserIconSize = 24;
 constexpr int kFileBrowserRowVerticalPadding = 6;
 constexpr int kFileBrowserTextGap = 8;
 constexpr int kFileBrowserValueMaxWidth = 76;
-constexpr int kFileBrowserFolderTextYOffset = 7;
-constexpr int kFileBrowserFolderIconYOffset = 10;
-constexpr int kFileBrowserFolderValueYOffset = 6;
 constexpr int kMenuPanelWidth = 384;
 constexpr int kMenuRowHeight = 64;
 constexpr int kMenuPanelTop = 210;
@@ -87,6 +84,10 @@ uint8_t selectedQuoteIndex() {
     initialized = true;
   }
   return index;
+}
+
+int centeredRowY(const int rowY, const int rowHeight, const int contentHeight) {
+  return rowY + std::max(0, rowHeight - contentHeight) / 2;
 }
 
 void drawProgressBlock(const GfxRenderer& renderer, const Rect& coverRect, const BookReadingStats* stats,
@@ -328,22 +329,21 @@ void MinimalTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCoun
 
     const uint8_t* iconBitmap = iconForName(rowIcon(i), kFileBrowserIconSize);
     if (iconBitmap != nullptr) {
-      const int iconY =
-          folderRow ? itemY + kFileBrowserFolderIconYOffset : itemY + (rowHeight - kFileBrowserIconSize) / 2;
+      const int iconY = centeredRowY(itemY, rowHeight, kFileBrowserIconSize);
       renderer.drawIcon(iconBitmap, iconX, iconY, kFileBrowserIconSize, kFileBrowserIconSize);
     }
 
     const int maxTitleLines = folderRow ? 1 : 2;
     auto lines = renderer.wrappedText(UI_10_FONT_ID, rowTitle(i).c_str(), textWidth, maxTitleLines);
     const int textBlockHeight = static_cast<int>(lines.size()) * lineHeight;
-    int textY = folderRow ? itemY + kFileBrowserFolderTextYOffset : itemY + (rowHeight - textBlockHeight) / 2;
+    int textY = centeredRowY(itemY, rowHeight, textBlockHeight);
     for (const auto& line : lines) {
       renderer.drawText(UI_10_FONT_ID, textX, textY, line.c_str(), true);
       textY += lineHeight;
     }
 
     if (!valueText.empty()) {
-      const int valueY = folderRow ? itemY + kFileBrowserFolderValueYOffset : itemY + (rowHeight - lineHeight) / 2;
+      const int valueY = centeredRowY(itemY, rowHeight, lineHeight);
       renderer.drawText(UI_10_FONT_ID, rect.x + contentWidth - MinimalMetrics::values.contentSidePadding - valueWidth,
                         valueY, valueText.c_str(), true);
     }

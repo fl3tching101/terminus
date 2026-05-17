@@ -46,6 +46,10 @@ constexpr uint32_t listIconSize = 24;
 constexpr int mainMenuColumns = 2;
 int coverWidth = 0;
 
+int centeredRowY(const int rowY, const int rowHeight, const int contentHeight) {
+  return rowY + std::max(0, rowHeight - contentHeight) / 2;
+}
+
 }  // namespace
 
 const uint8_t* LyraTheme::iconForName(UIIcon icon, uint32_t size) {
@@ -284,8 +288,9 @@ void LyraTheme::drawListWithMetrics(const GfxRenderer& renderer, Rect rect, int 
     textWidth -= iconSize + hPaddingInSelection;
   }
 
-  // Draw all items using a running Y to accommodate variable-height section headers
-  int iconY = (rowSubtitle != nullptr) ? 16 : 10;
+  const int titleLineHeight = renderer.getLineHeight(UI_10_FONT_ID);
+
+  // Draw all items using a running Y to accommodate variable-height section headers.
   int currentY = rect.y;
   for (int i = pageStartIndex; i < itemCount && i < pageStartIndex + pageItems; i++) {
     if (i > pageStartIndex && isHeaderRow(i)) currentY += sectionHeaderTopPadding;
@@ -324,13 +329,13 @@ void LyraTheme::drawListWithMetrics(const GfxRenderer& renderer, Rect rect, int 
 
     auto itemName = rowTitle(i);
     auto item = renderer.truncatedText(UI_10_FONT_ID, itemName.c_str(), rowTextWidth);
-    renderer.drawText(UI_10_FONT_ID, textX, itemY + 7, item.c_str(), foreground);
+    const int titleY = rowSubtitle != nullptr ? itemY + 7 : centeredRowY(itemY, currentRowHeight, titleLineHeight);
+    renderer.drawText(UI_10_FONT_ID, textX, titleY, item.c_str(), foreground);
 
     // Apply checkerboard dither to create gray text effect for dimmed items
     if (rowDimmed && rowDimmed(i) && !selectedRow) {
       const int titleWidth = renderer.getTextWidth(UI_10_FONT_ID, item.c_str());
-      const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
-      for (int py = itemY + 7; py < itemY + 7 + lineH; py++)
+      for (int py = titleY; py < titleY + titleLineHeight; py++)
         for (int px = textX; px < textX + titleWidth; px++)
           if ((px + py) % 2 == 0) renderer.drawPixel(px, py, false);
     }
@@ -340,10 +345,12 @@ void LyraTheme::drawListWithMetrics(const GfxRenderer& renderer, Rect rect, int 
       const uint8_t* iconBitmap = iconForName(icon, iconSize);
       if (iconBitmap != nullptr) {
         const int iconX = rect.x + metrics.contentSidePadding + hPaddingInSelection;
+        const int iconY =
+            rowSubtitle != nullptr ? itemY + 16 : centeredRowY(itemY, currentRowHeight, static_cast<int>(iconSize));
         if (invertSelectedRows && selectedRow) {
-          renderer.drawIconInverted(iconBitmap, iconX, itemY + iconY, iconSize, iconSize);
+          renderer.drawIconInverted(iconBitmap, iconX, iconY, iconSize, iconSize);
         } else {
-          renderer.drawIcon(iconBitmap, iconX, itemY + iconY, iconSize, iconSize);
+          renderer.drawIcon(iconBitmap, iconX, iconY, iconSize, iconSize);
         }
       }
     }
@@ -362,10 +369,7 @@ void LyraTheme::drawListWithMetrics(const GfxRenderer& renderer, Rect rect, int 
                                  itemY, valueWidth + hPaddingInSelection, rowHeight, cornerRadius, Color::Black);
       }
 
-      int valueY = itemY + 6;
-      if (rowSubtitle != nullptr) {
-        valueY = itemY + 16;
-      }
+      const int valueY = rowSubtitle != nullptr ? itemY + 16 : centeredRowY(itemY, currentRowHeight, titleLineHeight);
       const bool valueForeground = invertSelectedRows ? !selectedRow : !(selectedRow && highlightValue);
       renderer.drawText(UI_10_FONT_ID, rect.x + contentWidth - metrics.contentSidePadding - valueWidth, valueY,
                         valueText.c_str(), valueForeground);
