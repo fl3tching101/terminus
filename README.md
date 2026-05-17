@@ -70,13 +70,21 @@ The UI now uses [Inter](https://fonts.google.com/specimen/Inter) as the display 
 
 There are 3 available build variants to choose from due to build size constraints: tiny, xlarge, and no_emoji
 
+**teensy**
+> Only the small sized fonts.
+- Emoji & Misc. Symbols Support
+- 5 Font sizes:
+  - Teensy (8pt)
+  - Itty Bitty (9pt)
+  - Tiny (10pt)
+  - Small (12pt)
+
 **tiny**
 
 > No Extra Large or Huge font size. My preferred build.
 
 - Emoji & Misc. Symbols Support
 - 5 Font sizes:
-  - Teensy (8pt)
   - Tiny (10pt)
   - Small (12pt)
   - Medium (14pt)
