@@ -11,6 +11,7 @@
 - Relaxed KOReader Sync auth response validation so compatible self-hosted servers that return valid JSON on successful login can authenticate.
 - Fixed OPDS browsing on memory-constrained builds so large catalog feeds fail safely instead of rebooting the device.
 - Fixed a crash when opening the XTC chapter selector on memory-constrained builds.
+- Kept the Minimal theme home navigation button labels in English so all four labels stay consistent and compact.
 
 ### Changed
 - Kept OPDS feed parsing safer on low-memory devices while preserving older parser iteration helpers for future OPDS work.
