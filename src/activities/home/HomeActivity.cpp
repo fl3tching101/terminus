@@ -28,6 +28,7 @@
 #include "OpdsServerStore.h"
 #include "RecentBookProgress.h"
 #include "RecentBooksStore.h"
+#include "activities/apps/AppsLauncherActivity.h"
 #include "components/UITheme.h"
 #include "components/themes/lyra/LyraCarouselTheme.h"
 #include "components/themes/minimal/MinimalTheme.h"
@@ -46,6 +47,7 @@ enum class HomeMenuAction {
   OpdsBrowser,
   ReadingStats,
   Bookmarks,
+  Apps,
   FileTransfer,
   Settings,
 };
@@ -189,6 +191,7 @@ std::vector<HomeMenuItem> buildHomeMenuItems(bool hasOpdsServers, bool hasReadin
     items.push_back({tr(STR_BOOKMARKS), BookmarkIcon, HomeMenuAction::Bookmarks});
   }
 
+  items.push_back({"Apps", Apps, HomeMenuAction::Apps});
   items.push_back({tr(STR_FILE_TRANSFER), Transfer, HomeMenuAction::FileTransfer});
   items.push_back({tr(STR_SETTINGS_TITLE), Settings, HomeMenuAction::Settings});
   return items;
@@ -1133,6 +1136,9 @@ void HomeActivity::loop() {
           case HomeMenuAction::Bookmarks:
             onBookmarksOpen();
             break;
+          case HomeMenuAction::Apps:
+            onAppsOpen();
+            break;
           case HomeMenuAction::FileTransfer:
             onFileTransferOpen();
             break;
@@ -1304,6 +1310,9 @@ void HomeActivity::loop() {
         break;
       case HomeMenuAction::Bookmarks:
         onBookmarksOpen();
+        break;
+      case HomeMenuAction::Apps:
+        onAppsOpen();
         break;
       case HomeMenuAction::FileTransfer:
         onFileTransferOpen();
@@ -1520,6 +1529,8 @@ void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
 void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
 
 void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
+
+void HomeActivity::onAppsOpen() { activityManager.goToApps(); }
 
 void HomeActivity::onReadingStatsOpen() {
   const int highlightedBookIdx = getHighlightedBookIndex();

@@ -16,6 +16,7 @@
 #include "RecentBooksStore.h"
 #include "activities/reader/BookReadingStats.h"
 #include "components/UITheme.h"
+#include "components/icons/app.h"
 #include "components/icons/book.h"
 #include "components/icons/book24.h"
 #include "components/icons/chart.h"
@@ -84,6 +85,8 @@ const uint8_t* LyraTheme::iconForName(UIIcon icon, uint32_t size) {
         return TransferIcon;
       case UIIcon::Library:
         return LibraryIcon;
+      case UIIcon::Apps:
+        return AppIcon;
       case UIIcon::Wifi:
         return WifiIcon;
       case UIIcon::Hotspot:

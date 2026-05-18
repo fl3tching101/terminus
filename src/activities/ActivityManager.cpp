@@ -18,6 +18,7 @@
 #include "network/CrossPointWebServerActivity.h"
 #include "reader/ReaderActivity.h"
 #include "settings/OpdsServerListActivity.h"
+#include "apps/AppsLauncherActivity.h"
 #include "settings/SettingsActivity.h"
 #include "util/FullScreenMessageActivity.h"
 
@@ -210,6 +211,10 @@ void ActivityManager::goToBrowser() {
   } else {
     replaceActivity(std::make_unique<OpdsServerListActivity>(renderer, mappedInput, true));
   }
+}
+
+void ActivityManager::goToApps() {
+  replaceActivity(std::make_unique<AppsLauncherActivity>(renderer, mappedInput));
 }
 
 void ActivityManager::goToReader(std::string path, const bool suppressBackRelease) {

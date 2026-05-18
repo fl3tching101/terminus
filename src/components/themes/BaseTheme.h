@@ -84,6 +84,7 @@ enum UIIcon {
   Settings,
   Transfer,
   Library,
+  Apps,
   Wifi,
   Hotspot,
   Chart
