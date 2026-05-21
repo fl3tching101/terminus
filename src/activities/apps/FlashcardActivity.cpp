@@ -73,11 +73,11 @@ void FlashcardActivity::onExit() { Activity::onExit(); }
 void FlashcardActivity::loop() {
   if (state == DECK_SELECT) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) { finish(); return; }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Up) || mappedInput.wasPressed(MappedInputManager::Button::Left)) {
       deckIndex = ButtonNavigator::previousIndex(deckIndex, (int)deckFiles.size());
       requestUpdate();
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Down) || mappedInput.wasPressed(MappedInputManager::Button::Right)) {
       deckIndex = ButtonNavigator::nextIndex(deckIndex, (int)deckFiles.size());
       requestUpdate();
     }
