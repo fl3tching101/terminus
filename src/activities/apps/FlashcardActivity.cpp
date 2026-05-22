@@ -31,12 +31,12 @@ void FlashcardActivity::scanDecks() {
   dir.close();
 }
 
-bool FlashcardActivity::loadDeck(const std::string& path) {
-  cards.clear();
+int FlashcardActivity::countCards(const std::string& path) {
   auto file = Storage.open(path.c_str());
-  if (!file) return false;
+  if (!file) return 0;
 
   char line[300];
+  int count = 0;
   while (file.available()) {
     int len = 0;
     while (file.available() && len < (int)sizeof(line) - 1) {
@@ -47,19 +47,37 @@ bool FlashcardActivity::loadDeck(const std::string& path) {
     line[len] = '\0';
     if (len == 0) continue;
 
-    // Find comma separator
+    char* comma = strchr(line, ',');
+    if (!comma) continue;
+    count++;
+  }
+  file.close();
+  return count;
+}
+
+bool FlashcardActivity::parseNextCard() {
+  char line[300];
+  while (csvFile.available()) {
+    int len = 0;
+    while (csvFile.available() && len < (int)sizeof(line) - 1) {
+      char c = (char)csvFile.read();
+      if (c == '\n') break;
+      line[len++] = c;
+    }
+    line[len] = '\0';
+    if (len == 0) continue;
+
     char* comma = strchr(line, ',');
     if (!comma) continue;
     *comma = '\0';
 
-    Card card;
-    memset(&card, 0, sizeof(card));
-    strncpy(card.front, line, sizeof(card.front) - 1);
-    strncpy(card.back, comma + 1, sizeof(card.back) - 1);
-    cards.push_back(card);
+    currentCard = std::make_unique<Card>();
+    memset(currentCard.get(), 0, sizeof(Card));
+    strncpy(currentCard->front, line, sizeof(currentCard->front) - 1);
+    strncpy(currentCard->back, comma + 1, sizeof(currentCard->back) - 1);
+    return true;
   }
-  file.close();
-  return !cards.empty();
+  return false;
 }
 
 void FlashcardActivity::onEnter() {
@@ -74,7 +92,11 @@ void FlashcardActivity::onEnter() {
   requestUpdate();
 }
 
-void FlashcardActivity::onExit() { Activity::onExit(); }
+void FlashcardActivity::onExit() {
+  if (csvFile.isOpen()) csvFile.close();
+  currentCard.reset();
+  Activity::onExit();
+}
 
 void FlashcardActivity::loop() {
   if (state == DECK_SELECT) {
@@ -88,10 +110,19 @@ void FlashcardActivity::loop() {
       requestUpdate();
     }
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm) && !deckFiles.empty()) {
-      if (loadDeck(deckFiles[deckIndex])) {
-        cardIndex = 0;
+      totalCards = countCards(deckFiles[deckIndex]);
+      cardIndex = 0;
+      correctCount = 0;
+      wrongCount = 0;
+      eofReached = false;
+
+      csvFile = Storage.open(deckFiles[deckIndex].c_str());
+      if (csvFile && parseNextCard()) {
         state = CARD_FRONT;
         requestUpdate();
+      } else {
+        LOG_ERR("FLASHCARD", "No valid cards in deck");
+        csvFile.close();
       }
     }
     return;
@@ -109,18 +140,28 @@ void FlashcardActivity::loop() {
 
   if (state == CARD_BACK) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      csvFile.close();
+      currentCard.reset();
       state = DECK_SELECT; requestUpdate(); return;
     }
     if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
-      cards[cardIndex].wrong++;
+      wrongCount++;
       cardIndex++;
-      if (cardIndex >= (int)cards.size()) { state = STATS; requestUpdate(); return; }
+      if (!parseNextCard()) {
+        eofReached = true;
+        csvFile.close();
+        state = STATS; requestUpdate(); return;
+      }
       state = CARD_FRONT; requestUpdate();
     }
     if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
-      cards[cardIndex].correct++;
+      correctCount++;
       cardIndex++;
-      if (cardIndex >= (int)cards.size()) { state = STATS; requestUpdate(); return; }
+      if (!parseNextCard()) {
+        eofReached = true;
+        csvFile.close();
+        state = STATS; requestUpdate(); return;
+      }
       state = CARD_FRONT; requestUpdate();
     }
     return;
@@ -128,6 +169,7 @@ void FlashcardActivity::loop() {
 
   if (state == STATS) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      currentCard.reset();
       state = DECK_SELECT; requestUpdate();
     }
     return;
@@ -176,20 +218,20 @@ void FlashcardActivity::renderCardFront() const {
   const int pageHeight = renderer.getScreenHeight();
   const int mid = (metrics.topPadding + metrics.headerHeight + pageHeight - metrics.buttonHintsHeight) / 2;
 
-  char prog[24];
-  snprintf(prog, sizeof(prog), "Card %d / %d", cardIndex + 1, (int)cards.size());
+  char prog[32];
+  snprintf(prog, sizeof(prog), "Card %d / %d", cardIndex + 1, totalCards);
 
   // Prewarming SD font
   auto* fcm = renderer.getFontCacheManager();
   fcm->resetStats();
   auto scope = fcm->createPrewarmScope();
   renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 80, prog);
-  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, cards[cardIndex].front, true, EpdFontFamily::REGULAR);
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, currentCard->front, true, EpdFontFamily::REGULAR);
   scope.endScanAndPrewarm();
   fcm->logStats("prewarm");
 
   renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 80, prog);
-  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, cards[cardIndex].front, true, EpdFontFamily::REGULAR);
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, currentCard->front, true, EpdFontFamily::REGULAR);
 
   const auto labels = mappedInput.mapLabels("Quit", "Flip", "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -205,13 +247,13 @@ void FlashcardActivity::renderCardBack() const {
   auto* fcm = renderer.getFontCacheManager();
   fcm->resetStats();
   auto scope = fcm->createPrewarmScope();
-  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 80, cards[cardIndex].front, true, EpdFontFamily::REGULAR);
-  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, cards[cardIndex].back, true, EpdFontFamily::REGULAR);
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 80, currentCard->front, true, EpdFontFamily::REGULAR);
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, currentCard->back, true, EpdFontFamily::REGULAR);
   scope.endScanAndPrewarm();
   fcm->logStats("prewarm");
 
-  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 80, cards[cardIndex].front, true, EpdFontFamily::REGULAR);
-  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, cards[cardIndex].back, true, EpdFontFamily::REGULAR);
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 80, currentCard->front, true, EpdFontFamily::REGULAR);
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, currentCard->back, true, EpdFontFamily::REGULAR);
 
   const auto labels = mappedInput.mapLabels("Quit", "", "Wrong", "Correct");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -222,18 +264,17 @@ void FlashcardActivity::renderStats() const {
   const int pageWidth = renderer.getScreenWidth();
   const int top = metrics.topPadding + metrics.headerHeight + 30;
 
-  int total = 0, correct = 0, wrong = 0;
-  for (const auto& c : cards) { total++; correct += c.correct; wrong += c.wrong; }
-  int pct = (total > 0) ? (correct * 100 / total) : 0;
+  int total = correctCount + wrongCount;
+  int pct = (total > 0) ? (correctCount * 100 / total) : 0;
 
   renderer.drawCenteredText(UI_12_FONT_ID, top, "Results", true, EpdFontFamily::BOLD);
 
   char buf[48];
-  snprintf(buf, sizeof(buf), "Total: %d", total);
+  snprintf(buf, sizeof(buf), "Total: %d", totalCards);
   renderer.drawCenteredText(UI_10_FONT_ID, top + 50, buf);
-  snprintf(buf, sizeof(buf), "Correct: %d", correct);
+  snprintf(buf, sizeof(buf), "Correct: %d", correctCount);
   renderer.drawCenteredText(UI_10_FONT_ID, top + 80, buf);
-  snprintf(buf, sizeof(buf), "Wrong: %d", wrong);
+  snprintf(buf, sizeof(buf), "Wrong: %d", wrongCount);
   renderer.drawCenteredText(UI_10_FONT_ID, top + 110, buf);
   snprintf(buf, sizeof(buf), "Score: %d%%", pct);
   renderer.drawCenteredText(UI_12_FONT_ID, top + 150, buf, true, EpdFontFamily::BOLD);
