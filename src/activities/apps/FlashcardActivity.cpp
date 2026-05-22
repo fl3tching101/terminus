@@ -8,6 +8,9 @@
 
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
+#include "CrossPointSettings.h"
+#include "SdCardFontSystem.h"
+#include <FontCacheManager.h>
 #include "fontIds.h"
 
 void FlashcardActivity::scanDecks() {
@@ -65,6 +68,9 @@ void FlashcardActivity::onEnter() {
   state = DECK_SELECT;
   deckIndex = 0;
   cardIndex = 0;
+
+  sdFontSystem.ensureLoaded(renderer);
+
   requestUpdate();
 }
 
@@ -172,8 +178,18 @@ void FlashcardActivity::renderCardFront() const {
 
   char prog[24];
   snprintf(prog, sizeof(prog), "Card %d / %d", cardIndex + 1, (int)cards.size());
-  renderer.drawCenteredText(SMALL_FONT_ID, mid - 60, prog);
-  renderer.drawCenteredText(UI_12_FONT_ID, mid - 20, cards[cardIndex].front, true, EpdFontFamily::BOLD);
+
+  // Prewarming SD font
+  auto* fcm = renderer.getFontCacheManager();
+  fcm->resetStats();
+  auto scope = fcm->createPrewarmScope();
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 80, prog);
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, cards[cardIndex].front, true, EpdFontFamily::REGULAR);
+  scope.endScanAndPrewarm();
+  fcm->logStats("prewarm");
+
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 80, prog);
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, cards[cardIndex].front, true, EpdFontFamily::REGULAR);
 
   const auto labels = mappedInput.mapLabels("Quit", "Flip", "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -185,8 +201,17 @@ void FlashcardActivity::renderCardBack() const {
   const int pageHeight = renderer.getScreenHeight();
   const int mid = (metrics.topPadding + metrics.headerHeight + pageHeight - metrics.buttonHintsHeight) / 2;
 
-  renderer.drawCenteredText(SMALL_FONT_ID, mid - 60, cards[cardIndex].front);
-  renderer.drawCenteredText(UI_12_FONT_ID, mid - 20, cards[cardIndex].back, true, EpdFontFamily::BOLD);
+  // Prewarming SD font
+  auto* fcm = renderer.getFontCacheManager();
+  fcm->resetStats();
+  auto scope = fcm->createPrewarmScope();
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 80, cards[cardIndex].front, true, EpdFontFamily::REGULAR);
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, cards[cardIndex].back, true, EpdFontFamily::REGULAR);
+  scope.endScanAndPrewarm();
+  fcm->logStats("prewarm");
+
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 80, cards[cardIndex].front, true, EpdFontFamily::REGULAR);
+  renderer.drawCenteredText(SETTINGS.getReaderFontId(), mid - 20, cards[cardIndex].back, true, EpdFontFamily::REGULAR);
 
   const auto labels = mappedInput.mapLabels("Quit", "", "Wrong", "Correct");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
