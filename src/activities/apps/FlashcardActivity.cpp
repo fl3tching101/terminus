@@ -3,6 +3,8 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <string>
+#include "esp_random.h"
+#include "bootloader_random.h"
 
 #include <cstring>
 
@@ -80,12 +82,55 @@ bool FlashcardActivity::parseNextCard() {
   return false;
 }
 
+void FlashcardActivity::buildOffsets(const std::string& path) {
+  auto file = Storage.open(path.c_str());
+  if (!file) return;
+
+  offsetTable.clear();
+  
+  // Scan the entire file to find byte offsets of all non-empty lines.
+  // We record the position *before* reading each line, so we can seek back there later.
+  char line[300];
+  while (file.available()) {
+    size_t startPos = file.position();
+    int len = 0;
+    bool hasNewline = false;
+    while (file.available() && len < (int)sizeof(line) - 1) {
+      char c = (char)file.read();
+      if (c == '\n') {
+        hasNewline = true;
+        break;
+      }
+      line[len++] = c;
+    }
+    line[len] = '\0';
+
+    // Only record offsets for non-empty lines that contain a comma (valid CSV cards)
+    if (len > 0 && strchr(line, ',')) {
+      offsetTable.push_back(static_cast<int>(startPos));
+    }
+  }
+  file.close();
+}
+
+void FlashcardActivity::shuffleDeck() {
+  // Fisher-Yates shuffle using esp_random() for uniform distribution.
+  // Cast to uint32_t first — esp_random() returns signed int and % of negative
+  // values produces a negative index, corrupting the offset table heap.
+  int n = static_cast<int>(offsetTable.size());
+  for (int i = n - 1; i > 0; --i) {
+    int j = static_cast<int>(static_cast<uint32_t>(esp_random()) % (i + 1));
+    std::swap(offsetTable[i], offsetTable[j]);
+  }
+}
+
 void FlashcardActivity::onEnter() {
   Activity::onEnter();
   scanDecks();
   state = DECK_SELECT;
   deckIndex = 0;
   cardIndex = 0;
+  bootloader_random_enable();
 
   sdFontSystem.ensureLoaded(renderer);
 
@@ -95,6 +140,8 @@ void FlashcardActivity::onEnter() {
 void FlashcardActivity::onExit() {
   if (csvFile.isOpen()) csvFile.close();
   currentCard.reset();
+  offsetTable.clear();
+  bootloader_random_disable();
   Activity::onExit();
 }
 
@@ -111,18 +158,26 @@ void FlashcardActivity::loop() {
     }
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm) && !deckFiles.empty()) {
       totalCards = countCards(deckFiles[deckIndex]);
+      
+      // Build offset table and shuffle deck order
+      buildOffsets(deckFiles[deckIndex]);
+      shuffleDeck();
+
       cardIndex = 0;
       correctCount = 0;
       wrongCount = 0;
       eofReached = false;
 
       csvFile = Storage.open(deckFiles[deckIndex].c_str());
-      if (csvFile && parseNextCard()) {
+      if (csvFile && !offsetTable.empty()) {
+        // Seek to the first shuffled offset and load the first card
+        csvFile.seekSet(offsetTable[cardIndex]);
+        parseNextCard();
         state = CARD_FRONT;
         requestUpdate();
       } else {
         LOG_ERR("FLASHCARD", "No valid cards in deck");
-        csvFile.close();
+        if (csvFile.isOpen()) csvFile.close();
       }
     }
     return;
@@ -147,21 +202,25 @@ void FlashcardActivity::loop() {
     if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
       wrongCount++;
       cardIndex++;
-      if (!parseNextCard()) {
-        eofReached = true;
+      if (cardIndex >= totalCards) {
         csvFile.close();
         state = STATS; requestUpdate(); return;
       }
+      // Seek to next shuffled offset and parse the card
+      csvFile.seekSet(offsetTable[cardIndex]);
+      parseNextCard();
       state = CARD_FRONT; requestUpdate();
     }
     if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
       correctCount++;
       cardIndex++;
-      if (!parseNextCard()) {
-        eofReached = true;
+      if (cardIndex >= totalCards) {
         csvFile.close();
         state = STATS; requestUpdate(); return;
       }
+      // Seek to next shuffled offset and parse the card
+      csvFile.seekSet(offsetTable[cardIndex]);
+      parseNextCard();
       state = CARD_FRONT; requestUpdate();
     }
     return;

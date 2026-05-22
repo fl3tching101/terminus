@@ -29,6 +29,10 @@ class FlashcardActivity final : public Activity {
 
     std::vector<std::string> deckFiles;
     std::unique_ptr<Card> currentCard;
+    
+    // Shuffle support: byte offsets into CSV file for each non-empty line
+    std::vector<int> offsetTable;
+
     int totalCards = 0;
     int correctCount = 0;
     int wrongCount = 0;
@@ -43,6 +47,8 @@ class FlashcardActivity final : public Activity {
     void scanDecks();
     int countCards(const std::string& path);
     bool parseNextCard();
+    void buildOffsets(const std::string& path);
+    void shuffleDeck();
     void renderDeckSelect() const;
     void renderCardFront() const;
     void renderCardBack() const;
